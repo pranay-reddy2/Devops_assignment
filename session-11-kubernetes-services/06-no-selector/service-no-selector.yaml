@@ -1,0 +1,12 @@
+# Service WITHOUT a selector: Kubernetes will not create Endpoints automatically.
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-legacy-db
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

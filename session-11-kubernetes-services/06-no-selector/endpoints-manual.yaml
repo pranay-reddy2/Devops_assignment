@@ -1,0 +1,13 @@
+# Manual Endpoints object. MUST have the same name as the Service.
+# Points cluster traffic for external-legacy-db:80 at an IP outside the cluster.
+apiVersion: v1
+kind: Endpoints
+metadata:
+  name: external-legacy-db
+subsets:
+  - addresses:
+      - ip: 104.20.23.154      # example.com at time of writing (check with: nslookup example.com)
+    ports:
+      - name: http
+        port: 80
+        protocol: TCP
