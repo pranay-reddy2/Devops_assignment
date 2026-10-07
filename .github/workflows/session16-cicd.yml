@@ -1,0 +1,247 @@
+# Session 16 - CI/CD demo project (session-16-github-actions/cicd-demo-project)
+#
+# GitHub only runs workflows from the repository root .github/workflows/, so the
+# pipeline lives here and points at the project folder.
+#
+#   pull_request  -> CI only:  lint -> test (matrix) -> build artifact + docker image
+#   push to main  -> CI + CD:  ... -> publish image to GHCR -> deploy to Kubernetes (kind)
+name: "Session 16 - CI/CD Demo"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "session-16-github-actions/cicd-demo-project/**"
+      - ".github/workflows/session16-cicd.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "session-16-github-actions/cicd-demo-project/**"
+      - ".github/workflows/session16-cicd.yml"
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: "Also run the CD jobs (publish + deploy)"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: session16-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_DIR: session-16-github-actions/cicd-demo-project
+  IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/session16-calculator
+
+defaults:
+  run:
+    working-directory: session-16-github-actions/cicd-demo-project
+
+jobs:
+  # ---------------------------------------------------------------- CI
+  lint:
+    name: "CI: Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+
+      - name: Install ruff
+        run: pip install ruff==0.13.3
+
+      - name: Lint
+        run: ruff check --output-format=github .
+
+  test:
+    name: "CI: Test (Python ${{ matrix.python-version }})"
+    needs: lint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Run unit + API tests with coverage
+        run: |
+          mkdir -p reports
+          pytest -v --junitxml=reports/junit.xml \
+            --cov=app --cov-report=term-missing --cov-report=xml:reports/coverage.xml
+
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-py${{ matrix.python-version }}
+          path: ${{ env.APP_DIR }}/reports/
+
+  build:
+    name: "CI: Build artifact"
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Build application
+        env:
+          APP_VERSION: ${{ github.sha }}
+        run: ./build.sh
+
+      - name: Show build output
+        run: cat build/build-info.txt
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: calculator-build
+          path: ${{ env.APP_DIR }}/build/
+          retention-days: 7
+
+  docker:
+    name: "CI: Docker build + smoke test"
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Build image
+        run: |
+          docker build --build-arg APP_VERSION=${GITHUB_SHA::7} -t session16-calculator:${GITHUB_SHA::7} .
+          docker image ls session16-calculator
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name smoke session16-calculator:${GITHUB_SHA::7}
+          for i in $(seq 1 15); do
+            docker exec smoke python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')" 2>/dev/null && break
+            sleep 1
+          done
+          docker exec smoke python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8000/health').read().decode())"
+          docker exec smoke python -c "import urllib.request as u; print(u.urlopen('http://127.0.0.1:8000/api/calc?op=multiply&a=6&b=7').read().decode())"
+          docker rm -f smoke
+
+      - name: Save image as artifact
+        run: docker save session16-calculator:${GITHUB_SHA::7} | gzip > image.tar.gz
+
+      - name: Upload image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: ${{ env.APP_DIR }}/image.tar.gz
+          retention-days: 1
+
+  # ---------------------------------------------------------------- CD
+  publish:
+    name: "CD: Publish image to GHCR"
+    needs: [build, docker]
+    if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_dispatch' && inputs.deploy)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.tags.outputs.image }}
+    steps:
+      - name: Download image artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: docker-image
+
+      - name: Load image
+        working-directory: .
+        run: gunzip -c image.tar.gz | docker load
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tag and push
+        id: tags
+        working-directory: .
+        run: |
+          repo=$(echo "$IMAGE_REPO" | tr '[:upper:]' '[:lower:]')
+          sha=${GITHUB_SHA::7}
+          docker tag session16-calculator:$sha $repo:$sha
+          docker tag session16-calculator:$sha $repo:latest
+          docker push $repo:$sha
+          docker push $repo:latest
+          echo "image=$repo:$sha" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: "CD: Deploy to Kubernetes (kind)"
+    needs: publish
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - name: Checkout source code
+        uses: actions/checkout@v6
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: session16
+
+      - name: Download image artifact
+        uses: actions/download-artifact@v5
+        with:
+          name: docker-image
+
+      - name: Load image into the cluster
+        working-directory: .
+        # GHCR packages are private by default; loading the exact image the CI built
+        # avoids an imagePullSecret and guarantees we deploy what was tested.
+        run: |
+          gunzip -c image.tar.gz | docker load
+          docker tag session16-calculator:${GITHUB_SHA::7} ${{ needs.publish.outputs.image }}
+          kind load docker-image ${{ needs.publish.outputs.image }} --name session16
+
+      - name: Optional secret (shows masking)
+        env:
+          DEMO_API_KEY: ${{ secrets.DEMO_API_KEY }}
+        run: |
+          if [ -n "$DEMO_API_KEY" ]; then
+            echo "DEMO_API_KEY is set (${#DEMO_API_KEY} chars): $DEMO_API_KEY"
+          else
+            echo "DEMO_API_KEY not configured - skipping (add it under Settings > Secrets and variables > Actions)"
+          fi
+
+      - name: Deploy
+        run: |
+          sed "s|IMAGE_PLACEHOLDER|${{ needs.publish.outputs.image }}|" k8s/deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/service.yaml
+          kubectl rollout status deployment/calculator --timeout=120s
+          kubectl get deploy,pods,svc -l app=calculator -o wide
+
+      - name: Smoke test the deployment
+        run: |
+          kubectl port-forward svc/calculator 8080:80 >/dev/null 2>&1 &
+          sleep 3
+          curl -sf http://127.0.0.1:8080/health
+          echo
+          curl -sf "http://127.0.0.1:8080/api/calc?op=add&a=10&b=5"
+          echo
