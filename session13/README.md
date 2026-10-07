@@ -4,7 +4,7 @@
 **Course:** SST DevOps & Cloud [SWE]
 **Session:** 13
 **Repository:** devops-heros / session13
-**Environment:** macOS (Apple Silicon, arm64), Docker Desktop 29.7, minikube v1.39.0 (4 CPU / 6 GB), Kubernetes v1.37.0, metrics-server addon, Helm v3
+**Environment:** macOS (Apple Silicon, arm64), Docker Desktop 29.7, minikube v1.39.0 (4 CPU / 6 GB), Kubernetes v1.37.0, metrics-server addon, Helm v4.3
 
 Every output block is real output from this machine. Screenshots are in [screenshots/](screenshots/) and are rendered from the same captured output.
 
