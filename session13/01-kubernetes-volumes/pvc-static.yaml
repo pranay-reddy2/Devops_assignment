@@ -1,0 +1,15 @@
+# Fixed version of 02-persistent-storage/pvc.yaml.
+# Without storageClassName: "" the DefaultStorageClass admission plugin sets
+# "standard" and the claim is dynamically provisioned instead of binding to student-pv.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: student-pvc-static
+spec:
+  storageClassName: ""
+  volumeName: student-pv
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi
