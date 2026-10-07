@@ -1,0 +1,15 @@
+{{- if and .Values.monitoring.serviceMonitor.enabled (.Capabilities.APIVersions.Has "monitoring.coreos.com/v1") }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ include "spendwise.fullname" . }}-backend
+  labels: {{- include "spendwise.labels" . | nindent 4 }}
+spec:
+  selector:
+    matchLabels: {{- include "spendwise.selector" . | nindent 6 }}
+      app.kubernetes.io/component: backend
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: {{ .Values.monitoring.serviceMonitor.interval }}
+{{- end }}

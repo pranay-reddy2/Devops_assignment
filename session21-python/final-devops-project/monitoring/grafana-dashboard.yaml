@@ -1,0 +1,423 @@
+# Loaded by the Grafana sidecar (label grafana_dashboard=1).
+apiVersion: v1
+data:
+  grafana-dashboard-spendwise.json: |-
+    {
+      "uid": "spendwise",
+      "title": "SpendWise - application overview",
+      "schemaVersion": 39,
+      "tags": [
+        "spendwise",
+        "session21"
+      ],
+      "time": {
+        "from": "now-30m",
+        "to": "now"
+      },
+      "refresh": "10s",
+      "panels": [
+        {
+          "id": 1,
+          "type": "stat",
+          "title": "Backend pods up",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "red",
+                    "value": null
+                  },
+                  {
+                    "color": "green",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ]
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(up{namespace=\"spendwise\",job=~\".*backend\"}) or vector(0)"
+            }
+          ]
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Requests/s",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 4,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ]
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(rate(http_requests_total{namespace=\"spendwise\",job=~\".*backend\"}[2m])) or vector(0)"
+            }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "5xx ratio",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 8,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "red",
+                    "value": 0.01
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ]
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "(sum(rate(http_requests_total{namespace=\"spendwise\",job=~\".*backend\",status=\"5xx\"}[5m])) or vector(0)) / clamp_min(sum(rate(http_requests_total{namespace=\"spendwise\",job=~\".*backend\"}[5m])), 1e-9)"
+            }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "stat",
+          "title": "p95 latency",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "green",
+                    "value": null
+                  },
+                  {
+                    "color": "orange",
+                    "value": 0.3
+                  },
+                  {
+                    "color": "red",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ]
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=\"spendwise\",job=~\".*backend\"}[5m])))"
+            }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "stat",
+          "title": "Expenses created",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 16,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ]
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum(spendwise_expenses_created_total{namespace=\"spendwise\"}) or vector(0)"
+            }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "stat",
+          "title": "Backend replicas (HPA)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 20,
+            "y": 0,
+            "w": 4,
+            "h": 4
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "none",
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {
+                    "color": "blue",
+                    "value": null
+                  }
+                ]
+              }
+            },
+            "overrides": []
+          },
+          "options": {
+            "colorMode": "background",
+            "reduceOptions": {
+              "calcs": [
+                "last"
+              ]
+            }
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "kube_horizontalpodautoscaler_status_current_replicas{namespace=\"spendwise\",horizontalpodautoscaler=~\".*backend\"}"
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "Requests/s by handler",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 4,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (handler) (rate(http_requests_total{namespace=\"spendwise\",job=~\".*backend\"}[2m]))",
+              "legendFormat": "{{handler}}"
+            }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Latency p50 / p95",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 4,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "s"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "histogram_quantile(0.5, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=\"spendwise\",job=~\".*backend\"}[5m])))",
+              "legendFormat": "p50"
+            },
+            {
+              "refId": "B",
+              "expr": "histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{namespace=\"spendwise\",job=~\".*backend\"}[5m])))",
+              "legendFormat": "p95"
+            }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Expenses created by category (rate)",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 0,
+            "y": 12,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (category) (increase(spendwise_expenses_created_total{namespace=\"spendwise\"}[5m]))",
+              "legendFormat": "{{category}}"
+            }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "timeseries",
+          "title": "CPU / memory per pod",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "gridPos": {
+            "x": 12,
+            "y": 12,
+            "w": 12,
+            "h": 8
+          },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "short"
+            },
+            "overrides": []
+          },
+          "targets": [
+            {
+              "refId": "A",
+              "expr": "sum by (pod) (rate(container_cpu_usage_seconds_total{namespace=\"spendwise\",container!=\"\"}[2m]))",
+              "legendFormat": "cpu {{pod}}"
+            }
+          ]
+        }
+      ]
+    }
+kind: ConfigMap
+metadata:
+  labels:
+    grafana_dashboard: "1"
+  name: spendwise-dashboard
+  namespace: monitoring

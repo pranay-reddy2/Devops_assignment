@@ -1,0 +1,60 @@
+# Defaults. Environment files (values-dev.yaml, values-prod.yaml) override these.
+image:
+  backend:
+    repository: ghcr.io/pranay-reddy2/spendwise-backend
+    tag: ""            # CI sets the git SHA; empty falls back to .Chart.AppVersion
+  frontend:
+    repository: ghcr.io/pranay-reddy2/spendwise-frontend
+    tag: ""
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+# Non-secret configuration -> ConfigMap
+config:
+  appEnv: dev
+  logLevel: info
+  currency: INR
+
+backend:
+  replicas: 2
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 384Mi}
+frontend:
+  replicas: 2
+  resources:
+    requests: {cpu: 25m, memory: 32Mi}
+    limits: {cpu: 200m, memory: 128Mi}
+
+postgres:
+  image: postgres:16-alpine
+  database: spendwise
+  username: spendwise
+  # Never commit a real password. Either pass it at install time
+  # (--set postgres.password=...) or point at an existing Secret.
+  password: ""
+  existingSecret: ""   # Secret with keys: password, database-url
+  storage:
+    size: 1Gi
+    storageClassName: ""   # "" = cluster default
+  resources:
+    requests: {cpu: 100m, memory: 128Mi}
+    limits: {cpu: 500m, memory: 512Mi}
+
+ingress:
+  enabled: true
+  className: nginx
+  host: spendwise.local
+  tls: []
+
+hpa:
+  backend: {enabled: true, minReplicas: 2, maxReplicas: 6, targetCPUUtilizationPercentage: 60}
+  frontend: {enabled: true, minReplicas: 2, maxReplicas: 4, targetCPUUtilizationPercentage: 70}
+
+pdb:
+  enabled: true
+
+monitoring:
+  serviceMonitor:
+    enabled: true
+    interval: 15s

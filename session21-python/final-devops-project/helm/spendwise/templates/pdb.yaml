@@ -1,0 +1,15 @@
+{{- if .Values.pdb.enabled }}
+{{- range $component := list "backend" "frontend" }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "spendwise.fullname" $ }}-{{ $component }}
+  labels: {{- include "spendwise.labels" $ | nindent 4 }}
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels: {{- include "spendwise.selector" $ | nindent 6 }}
+      app.kubernetes.io/component: {{ $component }}
+{{- end }}
+{{- end }}

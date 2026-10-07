@@ -1,0 +1,9 @@
+SpendWise {{ .Chart.AppVersion }} installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+{{- if .Values.ingress.enabled }}
+Open: http://{{ .Values.ingress.host }}/   (API under /api, e.g. /api/expenses/summary)
+{{- end }}
+Without the Ingress:
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "spendwise.fullname" . }}-frontend 8080:80
+Run the chart test:
+  helm test {{ .Release.Name }} -n {{ .Release.Namespace }}

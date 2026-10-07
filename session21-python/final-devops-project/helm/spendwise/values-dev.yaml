@@ -1,0 +1,9 @@
+# minikube: images are loaded with `minikube image load`, ingress via the nginx addon.
+image:
+  backend: {repository: spendwise-backend}
+  frontend: {repository: spendwise-frontend}
+config:
+  appEnv: dev
+  logLevel: debug
+ingress:
+  host: spendwise.local

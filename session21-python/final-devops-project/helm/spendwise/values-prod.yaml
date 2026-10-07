@@ -1,0 +1,15 @@
+# EKS (terraform/): images from GHCR tagged with the commit SHA by CI.
+config:
+  appEnv: prod
+  logLevel: info
+backend:
+  replicas: 3
+postgres:
+  existingSecret: spendwise-db        # created out-of-band (e.g. External Secrets / AWS Secrets Manager)
+  storage:
+    size: 10Gi
+    storageClassName: gp3
+ingress:
+  host: spendwise.example.com
+hpa:
+  backend: {enabled: true, minReplicas: 3, maxReplicas: 10, targetCPUUtilizationPercentage: 60}

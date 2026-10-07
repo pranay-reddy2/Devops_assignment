@@ -1,0 +1,16 @@
+# Desired state for the dev environment. CI changes ONLY the image tags below
+# (see .github/workflows/session21-final.yml, job "gitops-update"); Argo CD syncs it.
+image:
+  backend:
+    repository: spendwise-backend          # minikube: images loaded with `minikube image load`
+    tag: "1.0.0"
+  frontend:
+    repository: spendwise-frontend
+    tag: "1.0.0"
+config:
+  appEnv: dev
+  logLevel: info
+postgres:
+  existingSecret: spendwise-db   # created out of band; credentials never live in Git
+ingress:
+  host: spendwise.local

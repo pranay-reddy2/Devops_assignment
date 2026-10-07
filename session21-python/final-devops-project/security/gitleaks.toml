@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+[allowlist]
+description = "generated / dependency paths"
+paths = ['''node_modules/''', '''\.venv/''', '''dist/''', '''security/reports/''']

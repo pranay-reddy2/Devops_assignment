@@ -1,0 +1,52 @@
+# Full local stack: PostgreSQL + FastAPI backend + React/nginx frontend.
+#   cd docker && docker compose up --build      -> http://localhost:3000
+# Credentials come from docker/.env (copy .env.example); the defaults are for local use only.
+# Docker Hub rate-limited?  PY_REGISTRY=mirror.gcr.io/library REGISTRY=mirror.gcr.io docker compose up --build
+name: spendwise
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: spendwise
+      POSTGRES_USER: spendwise
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-spendwise-local}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U spendwise -d spendwise"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  backend:
+    build:
+      context: ../application/backend
+      args:
+        REGISTRY: ${PY_REGISTRY:-docker.io/library}
+    image: spendwise-backend:local
+    environment:
+      DATABASE_URL: postgresql+psycopg://spendwise:${POSTGRES_PASSWORD:-spendwise-local}@postgres:5432/spendwise
+      APP_ENV: compose
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+  frontend:
+    build:
+      context: ../application/frontend
+      args:
+        REGISTRY: ${REGISTRY:-docker.io}
+    image: spendwise-frontend:local
+    environment:
+      BACKEND_URL: http://backend:8000
+    depends_on:
+      - backend
+    ports:
+      - "3000:8080"
+
+volumes:
+  postgres-data:

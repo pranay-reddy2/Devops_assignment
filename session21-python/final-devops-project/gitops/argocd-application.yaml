@@ -1,0 +1,27 @@
+# Argo CD Application: renders helm/spendwise with environments/dev/values.yaml
+# from the GitOps repository and keeps namespace spendwise in sync with it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: spendwise-dev
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea.svc:3000/pranay/spendwise-gitops.git   # local demo (in-cluster Gitea)
+    targetRevision: main
+    path: helm/spendwise
+    helm:
+      releaseName: spendwise
+      valueFiles:
+        - ../../environments/dev/values.yaml
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: spendwise
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true

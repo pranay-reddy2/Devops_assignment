@@ -1,0 +1,28 @@
+# Alerting rules for SpendWise (picked up by kube-prometheus-stack: ruleSelectorNilUsesHelmValues=false)
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: spendwise-alerts
+  namespace: spendwise
+spec:
+  groups:
+    - name: spendwise.rules
+      rules:
+        - alert: SpendWiseBackendDown
+          expr: (sum(up{namespace="spendwise", job=~".*backend"}) or vector(0)) == 0
+          for: 1m
+          labels: {severity: critical}
+          annotations:
+            summary: "No SpendWise backend pod is being scraped successfully"
+        - alert: SpendWiseHigh5xxRate
+          expr: sum(rate(http_requests_total{namespace="spendwise", status="5xx"}[5m])) / sum(rate(http_requests_total{namespace="spendwise"}[5m])) > 0.05
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "More than 5% of SpendWise API requests fail"
+        - alert: SpendWiseSlowRequests
+          expr: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{namespace="spendwise"}[5m]))) > 0.5
+          for: 5m
+          labels: {severity: warning}
+          annotations:
+            summary: "SpendWise p95 latency above 500ms"

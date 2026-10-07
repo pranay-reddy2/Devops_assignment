@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "spendwise.fullname" . }}-config
+  labels: {{- include "spendwise.labels" . | nindent 4 }}
+data:
+  APP_ENV: {{ .Values.config.appEnv | quote }}
+  LOG_LEVEL: {{ .Values.config.logLevel | quote }}
+  CURRENCY: {{ .Values.config.currency | quote }}
+  POSTGRES_DB: {{ .Values.postgres.database | quote }}
+  POSTGRES_USER: {{ .Values.postgres.username | quote }}
