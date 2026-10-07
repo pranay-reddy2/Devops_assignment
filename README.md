@@ -17,4 +17,4 @@
 - Session 18: https://github.com/pranay-reddy2/Devops_assignment/blob/main/session18-terraform-iac/README.md
 - Session 19: https://github.com/pranay-reddy2/Devops_assignment/blob/main/session19-cloud-terraform/README.md
 - Session 20: https://github.com/pranay-reddy2/Devops_assignment/blob/main/session20-monitoring-observability-gitops/README.md
-- Session 21: https://github.com/pranay-reddy2/Devops_assignment/blob/main/session21-python/final-devops-project/README.md
+- Session 21: https://github.com/pranay-reddy2/Devops_assignment/blob/main/session21-python/README.md
