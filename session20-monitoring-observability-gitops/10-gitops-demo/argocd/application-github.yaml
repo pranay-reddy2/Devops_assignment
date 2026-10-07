@@ -1,0 +1,22 @@
+# Same Application pointed at this assignment repository on GitHub (use after pushing;
+# for a private repo add it in Argo CD first: argocd repo add <url> --username ... --password <PAT>).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: session20-mini
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/pranay-reddy2/Devops_assignment.git
+    targetRevision: main
+    path: session20-monitoring-observability-gitops/10-gitops-demo/gitops-repo/app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: session20
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

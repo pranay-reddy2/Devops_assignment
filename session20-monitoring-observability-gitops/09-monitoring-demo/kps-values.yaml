@@ -1,0 +1,26 @@
+# kube-prometheus-stack values for a single-node minikube lab.
+grafana:
+  adminPassword: admin            # lab only - change/rotate in any real cluster
+  defaultDashboardsTimezone: browser
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    retention: 2d
+    # pick up ServiceMonitors / PrometheusRules from any namespace, not only ones
+    # labelled with this Helm release
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+alertmanager:
+  alertmanagerSpec:
+    retention: 24h
+# minikube runs these control-plane components bound to localhost, so scraping them
+# only produces permanent "TargetDown" noise
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+kubeProxy:
+  enabled: false

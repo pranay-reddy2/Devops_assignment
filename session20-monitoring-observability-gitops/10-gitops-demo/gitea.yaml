@@ -1,0 +1,64 @@
+# A small in-cluster Git server (Gitea, sqlite) used as the GitOps "source of truth"
+# for the local demo, so commits can be made and synced without pushing to GitHub.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gitea
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gitea
+  namespace: gitea
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gitea
+  template:
+    metadata:
+      labels:
+        app: gitea
+    spec:
+      securityContext:
+        fsGroup: 1000
+      containers:
+        - name: gitea
+          image: gitea/gitea:1.24-rootless
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GITEA__security__INSTALL_LOCK
+              value: "true"
+            - name: GITEA__database__DB_TYPE
+              value: sqlite3
+            - name: GITEA__server__ROOT_URL
+              value: http://gitea-http.gitea.svc:3000/
+            - name: GITEA__service__DISABLE_REGISTRATION
+              value: "true"
+          readinessProbe:
+            httpGet:
+              path: /api/healthz
+              port: 3000
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/gitea
+            - name: config
+              mountPath: /etc/gitea
+      volumes:
+        - name: data
+          emptyDir: {}
+        - name: config
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gitea-http
+  namespace: gitea
+spec:
+  selector:
+    app: gitea
+  ports:
+    - port: 3000
+      targetPort: 3000

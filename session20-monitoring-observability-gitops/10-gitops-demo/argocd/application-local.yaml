@@ -1,0 +1,22 @@
+# Argo CD Application for the local demo: watches app/ in the in-cluster Gitea repo.
+# Kept outside the watched path on purpose (see 08-mini-project/README.md, Step 3).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: session20-mini
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea.svc:3000/pranay/session20-gitops.git
+    targetRevision: main
+    path: app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: session20
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
