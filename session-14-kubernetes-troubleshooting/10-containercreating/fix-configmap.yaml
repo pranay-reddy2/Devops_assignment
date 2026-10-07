@@ -1,0 +1,9 @@
+# Fix: create the ConfigMap the Pod expects. The kubelet retries the mount
+# and the same Pod starts without being recreated.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: site-content
+data:
+  index.html: |
+    <h1>creating-demo fixed: ConfigMap mounted</h1>

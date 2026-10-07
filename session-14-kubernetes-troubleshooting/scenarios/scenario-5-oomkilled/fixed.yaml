@@ -1,0 +1,32 @@
+# Fix: the container tried to hold ~1000 MB (100 x 10 MB) under a 20Mi limit,
+# so the kernel OOM-killer ended it (exit 137, OOMKilled). Two parts to a real fix:
+#  1. code: do not keep growing an unbounded list (here: bounded to 5 x 10 MB);
+#  2. limits: size the limit from observed usage with headroom (kubectl top).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-5-oomkilled-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: oomkilled
+spec:
+  containers:
+    - name: memory-leaker
+      image: python:3.11-alpine
+      env:
+        - name: PYTHONUNBUFFERED   # print() is block-buffered without a TTY; flush so kubectl logs shows it
+          value: "1"
+      command:
+        - "python3"
+        - "-c"
+        - |
+          import time
+          print("Allocating a bounded 50 MB working set...")
+          chunks = [b"x" * (10 * 1024 * 1024) for _ in range(5)]
+          print("Allocated", sum(len(c) for c in chunks) // (1024 * 1024), "MB - running")
+          time.sleep(3600)
+      resources:
+        requests:
+          memory: "64Mi"
+        limits:
+          memory: "128Mi"

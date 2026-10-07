@@ -1,0 +1,15 @@
+# Fix: point at an image reference that exists. "yatri-api-service" is not on
+# Docker Hub at all (no registry prefix = docker.io/library/...). In a real team
+# you would use the full registry path and the tag CI actually pushed, e.g.
+# ghcr.io/<org>/yatri-api-service:<git-sha>. For this lab: nginx:alpine.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-2-imagepull-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: imagepull
+spec:
+  containers:
+    - name: web-app
+      image: nginx:alpine

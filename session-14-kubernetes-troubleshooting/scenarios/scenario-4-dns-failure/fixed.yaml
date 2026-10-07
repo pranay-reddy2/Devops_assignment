@@ -1,0 +1,26 @@
+# Fix: use the Service's real name. DNS name format:
+# <service>.<namespace>.svc.cluster.local -> postgres-db.production.svc.cluster.local
+# telnet:// makes curl just open the TCP connection, which is enough to prove
+# DNS + Service + Pod are wired up (Postgres does not speak HTTP).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: fail-4-dns-failure-pod
+  labels:
+    tier: triage-gauntlet
+    scenario: dns-failure
+spec:
+  containers:
+    - name: client
+      image: curlimages/curl:8.6.0
+      command: ["sh", "-c"]
+      args:
+        - |
+          echo "Attempting connection to internal database...";
+          if echo | curl -sv --connect-timeout 3 -m 3 telnet://postgres-db.production.svc.cluster.local:5432 2>&1 | grep -q "Connected to"; then
+            echo "Connected to postgres-db.production.svc.cluster.local:5432";
+          else
+            echo "Connection FAILED";
+          fi
+          echo "Process sleeping...";
+          sleep 3600

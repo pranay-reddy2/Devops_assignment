@@ -1,0 +1,14 @@
+# dns-test-pod.yaml uses registry.k8s.io/e2e-test-images/dnsutils:1.3, which does
+# not exist (ErrImagePull: not found). The Kubernetes DNS-debugging image is
+# jessie-dnsutils (multi-arch, has nslookup and dig).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-test
+spec:
+  containers:
+    - name: dns-test
+      image: registry.k8s.io/e2e-test-images/jessie-dnsutils:1.3
+      command:
+        - sleep
+        - "3600"
