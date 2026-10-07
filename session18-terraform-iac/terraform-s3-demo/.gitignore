@@ -21,3 +21,7 @@ override.tf.json
 .idea/
 .vscode/
 .DS_Store
+
+# terraform.tfvars only holds a region and a bucket name (no secrets) and is a
+# required deliverable for this task, so it is committed.
+!terraform.tfvars
