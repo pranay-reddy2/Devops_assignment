@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: session17-python
+  namespace: devsecops
+  labels:
+    app: session17-python
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: session17-python
+  template:
+    metadata:
+      labels:
+        app: session17-python
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: app
+          image: __IMAGE__            # set by the deploy job to the scanned image
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 5001
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp       # gunicorn worker heartbeat files
+      volumes:
+        - name: tmp
+          emptyDir: {}

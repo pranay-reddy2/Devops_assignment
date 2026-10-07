@@ -1,0 +1,14 @@
+# The instructor's .dockerignore was empty, so .venv, tests, .git etc. ended up in the build context.
+.git
+.github
+.venv
+venv
+__pycache__
+*.pyc
+.pytest_cache
+.coverage
+tests
+reports
+security
+k8s
+*.md

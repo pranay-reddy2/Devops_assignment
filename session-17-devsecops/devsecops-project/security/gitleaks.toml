@@ -1,0 +1,10 @@
+# Secret scanning: default gitleaks rules + project allowlist.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "local/generated paths that are not source"
+paths = [
+  '''\.venv/''',
+  '''reports/''',
+]

@@ -1,0 +1,3 @@
+# SAST policy for Bandit. Tests use assert by design (B101).
+exclude_dirs: ["tests", ".venv"]
+skips: ["B101"]

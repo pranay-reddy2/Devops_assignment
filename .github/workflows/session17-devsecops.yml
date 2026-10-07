@@ -1,0 +1,306 @@
+# Session 17 - CI/CD + DevSecOps pipeline (session-17-devsecops/devsecops-project)
+#
+# Code -> Build -> Unit Test -> SAST -> SCA -> Secret Scan -> Docker Build
+#      -> Container Image Scan -> Security Gate -> Push Image -> Deploy to Kubernetes
+#
+# Scan jobs only produce JSON reports; the security-gate job applies one policy
+# (security/gate.py) to all of them and is the single place that can stop a release.
+name: "Session 17 - DevSecOps Pipeline"
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "session-17-devsecops/devsecops-project/**"
+      - ".github/workflows/session17-devsecops.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "session-17-devsecops/devsecops-project/**"
+      - ".github/workflows/session17-devsecops.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: session17-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  APP_DIR: session-17-devsecops/devsecops-project
+  IMAGE_REPO: ghcr.io/${{ github.repository_owner }}/session17-devsecops
+  GITLEAKS_VERSION: 8.30.1
+
+defaults:
+  run:
+    working-directory: session-17-devsecops/devsecops-project
+
+jobs:
+  build:
+    name: "1. Build"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install runtime dependencies
+        run: pip install -r requirements.txt
+      - name: Compile and import the app
+        run: |
+          python -m compileall -q app
+          python -c "from app.app import app; print('routes:', sorted(r.rule for r in app.url_map.iter_rules()))"
+
+  unit-test:
+    name: "2. Unit Test"
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements-dev.txt
+      - name: pytest
+        run: |
+          mkdir -p reports
+          pytest -v --junitxml=reports/junit.xml --cov=app --cov-report=term-missing
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-report
+          path: ${{ env.APP_DIR }}/reports/junit.xml
+
+  sast:
+    name: "3. SAST (Bandit)"
+    needs: unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install "bandit[sarif]==1.9.4"
+      - name: Bandit
+        run: |
+          mkdir -p reports
+          bandit -c security/bandit.yaml -r app -f json -o reports/bandit.json || true
+          bandit -c security/bandit.yaml -r app -f sarif -o reports/bandit.sarif || true
+          bandit -c security/bandit.yaml -r app || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reports-sast
+          path: ${{ env.APP_DIR }}/reports/bandit.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bandit-sarif
+          path: ${{ env.APP_DIR }}/reports/bandit.sarif
+
+  codeql:
+    # GitHub-hosted only (skipped in local act runs): CodeQL analysis + Bandit SARIF
+    # upload, both shown under Security > Code scanning. Needs a public repo or GHAS,
+    # so it is informational and never blocks the pipeline.
+    name: "3b. SAST (CodeQL + code scanning upload)"
+    needs: sast
+    if: ${{ !github.event.act }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v6
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          source-root: ${{ env.APP_DIR }}
+      - uses: github/codeql-action/analyze@v3
+      - uses: actions/download-artifact@v5
+        with:
+          name: bandit-sarif
+      - uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: bandit.sarif
+          category: bandit
+
+  sca:
+    name: "4. SCA (pip-audit)"
+    needs: unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - run: pip install pip-audit==2.9.0
+      - name: pip-audit
+        run: |
+          mkdir -p reports
+          pip-audit -r requirements.txt -f json -o reports/pip-audit.json || true
+          pip-audit -r requirements.txt || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reports-sca
+          path: ${{ env.APP_DIR }}/reports/pip-audit.json
+
+  secret-scan:
+    name: "5. Secret Scan (gitleaks)"
+    needs: unit-test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install gitleaks (checksum verified)
+        working-directory: /tmp
+        run: |
+          case "$(uname -m)" in x86_64) arch=x64 ;; aarch64|arm64) arch=arm64 ;; esac
+          base=https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}
+          file=gitleaks_${GITLEAKS_VERSION}_linux_${arch}.tar.gz
+          curl -sSLO "$base/$file"
+          curl -sSL "$base/gitleaks_${GITLEAKS_VERSION}_checksums.txt" | grep " $file\$" | sha256sum -c -
+          tar -xzf "$file" gitleaks && sudo mv gitleaks /usr/local/bin/
+          gitleaks version
+      - name: gitleaks
+        run: |
+          mkdir -p reports
+          gitleaks dir . -c security/gitleaks.toml -f json -r reports/gitleaks.json --no-banner --exit-code 0
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reports-secrets
+          path: ${{ env.APP_DIR }}/reports/gitleaks.json
+
+  docker-build:
+    name: "6. Docker Build"
+    needs: [sast, sca, secret-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build image
+        run: |
+          docker build -t session17-python:${GITHUB_SHA} .
+          docker image ls session17-python
+      - name: Save image
+        run: docker save session17-python:${GITHUB_SHA} | gzip > image.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: ${{ env.APP_DIR }}/image.tar.gz
+          retention-days: 1
+
+  image-scan:
+    name: "7. Container Image Scan (Trivy)"
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          name: docker-image
+      - name: Load image
+        working-directory: .
+        run: gunzip -c image.tar.gz | docker load
+      - name: Create report directory
+        run: mkdir -p reports
+      - name: Trivy (JSON report for the gate)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: session17-python:${{ github.sha }}
+          scan-type: image
+          scanners: vuln
+          format: json
+          output: ${{ env.APP_DIR }}/reports/trivy-image.json
+          trivyignores: ${{ env.APP_DIR }}/security/.trivyignore
+          exit-code: "0"
+      - name: Trivy (readable table, HIGH/CRITICAL)
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: session17-python:${{ github.sha }}
+          scan-type: image
+          scanners: vuln
+          severity: HIGH,CRITICAL
+          format: table
+          exit-code: "0"
+          skip-setup-trivy: true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reports-image
+          path: ${{ env.APP_DIR }}/reports/trivy-image.json
+
+  security-gate:
+    name: "8. Security Gate"
+    needs: [sast, sca, secret-scan, image-scan]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: reports-*
+          merge-multiple: true
+          path: ${{ env.APP_DIR }}/reports
+      - name: Apply security policy
+        run: python3 security/gate.py reports
+
+  push:
+    name: "9. Push Image (GHCR)"
+    needs: security-gate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.push.outputs.image }}
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          name: docker-image
+      - run: gunzip -c image.tar.gz | docker load
+        working-directory: .
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Tag and push
+        id: push
+        working-directory: .
+        run: |
+          repo=$(echo "$IMAGE_REPO" | tr '[:upper:]' '[:lower:]')
+          docker tag session17-python:${GITHUB_SHA} $repo:${GITHUB_SHA::7}
+          docker tag session17-python:${GITHUB_SHA} $repo:latest
+          docker push $repo:${GITHUB_SHA::7}
+          docker push $repo:latest
+          echo "image=$repo:${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+
+  deploy:
+    name: "10. Deploy to Kubernetes"
+    needs: push
+    runs-on: ubuntu-latest
+    environment: staging
+    steps:
+      - uses: actions/checkout@v6
+      - uses: helm/kind-action@v1
+        with:
+          cluster_name: session17
+      - uses: actions/download-artifact@v5
+        with:
+          name: docker-image
+      - name: Load the scanned image into the cluster
+        working-directory: .
+        run: |
+          gunzip -c image.tar.gz | docker load
+          docker tag session17-python:${GITHUB_SHA} ${{ needs.push.outputs.image }}
+          kind load docker-image ${{ needs.push.outputs.image }} --name session17
+      - name: Deploy (restricted Pod Security namespace)
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          sed "s|__IMAGE__|${{ needs.push.outputs.image }}|" k8s/deployment.yaml | kubectl apply -f -
+          kubectl apply -f k8s/service.yaml
+          kubectl -n devsecops rollout status deployment/session17-python --timeout=120s
+          kubectl -n devsecops get deploy,pods,svc -o wide
+      - name: Smoke test
+        run: |
+          kubectl -n devsecops port-forward svc/session17-python 5001:80 >/dev/null 2>&1 &
+          sleep 3
+          curl -sf http://127.0.0.1:5001/health && echo
+          curl -sf http://127.0.0.1:5001/api/status && echo
